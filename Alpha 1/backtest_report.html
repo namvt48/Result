@@ -18,6 +18,39 @@ h3 { color: #94a3b8; font-size: 13px; margin: 20px 0 8px; }
 .fee-highlight { color: #fbbf24 !important; }
 table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
 th { background: #1e293b; color: #94a3b8; text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #334155; position: sticky; top: 0; }
+.coin-detail-table { min-width: 1180px; font-variant-numeric: tabular-nums; }
+.coin-detail-table th { vertical-align: middle; padding: 7px 8px; }
+.coin-detail-table td { white-space: nowrap; }
+.coin-detail-table th:nth-child(n+2):not(:last-child),
+.coin-detail-table td:nth-child(n+2):not(:last-child) { text-align: right; }
+.coin-detail-table th:last-child,
+.coin-detail-table td:last-child { text-align: center; }
+.coin-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 22px;
+}
+.coin-detail-label { line-height: 1.15; }
+.coin-detail-sort {
+  flex: 0 0 auto;
+  min-width: 38px;
+  padding: 2px 4px;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  background: #0f172a;
+  color: #cbd5e1;
+  font: inherit;
+  font-size: 9px;
+  line-height: 1.3;
+  cursor: pointer;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+.coin-detail-sort:hover { background: #334155; color: #f8fafc; border-color: #64748b; }
+.coin-detail-sort.active { background: #082f49; border-color: #38bdf8; color: #7dd3fc; }
 td { padding: 7px 10px; border-bottom: 1px solid #1e293b; }
 tr:hover td { background: #1e293b; }
 .pos { color: #22c55e; }
@@ -27,7 +60,7 @@ tr:hover td { background: #1e293b; }
 .summary-card .label { color: #64748b; font-size: 11px; text-transform: uppercase; }
 .summary-card .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
 .summary-card .sub { color: #64748b; font-size: 11px; margin-top: 2px; }
-.tf-section { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+.tf-section { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin-bottom: 24px; overflow-x: auto; }
 .chart-container { position: relative; background: #0f172a; border: 1px solid #334155; border-radius: 8px; margin: 16px 0; overflow: hidden; }
 .chart-container canvas { display: block; width: 100%; }
 .chart-title { position: absolute; top: 12px; left: 16px; color: #94a3b8; font-size: 12px; z-index: 2; pointer-events: none; }
@@ -4302,7 +4335,7 @@ footer { text-align: center; color: #475569; margin-top: 40px; padding: 20px; bo
 </div>
 
 <h3>Chi tiet theo coin</h3>
-<table>
+<table class="coin-detail-table">
 <thead>
 <tr>
   <th>Coin</th><th>Lenh</th><th>Long</th><th>Short</th>
@@ -15927,7 +15960,7 @@ footer { text-align: center; color: #475569; margin-top: 40px; padding: 20px; bo
 </div>
 
 <h3>Chi tiet theo coin</h3>
-<table>
+<table class="coin-detail-table">
 <thead>
 <tr>
   <th>Coin</th><th>Lenh</th><th>Long</th><th>Short</th>
@@ -23415,7 +23448,72 @@ function drawChart(canvasId, data, big) {
   }
 }
 
+function coinDetailSortValue(cell, columnIndex) {
+  const text = cell.textContent.trim();
+  if (columnIndex === 0) return text.toLowerCase();
+  const firstNumber = text.match(/[-+]?\$?[\d,]+(?:\.\d+)?%?/);
+  if (firstNumber) {
+    const parsed = Number(firstNumber[0].replace(/[$,%]/g, '').replace(/,/g, ''));
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return text.toLowerCase();
+}
+
+function initCoinDetailSorting() {
+  document.querySelectorAll('.coin-detail-table').forEach(function(table) {
+    const tbody = table.tBodies[0];
+    if (!tbody) return;
+    Array.from(table.tHead.rows[0].cells).forEach(function(th, columnIndex) {
+      if (th.querySelector('.coin-detail-sort')) return;
+      const label = th.textContent.trim();
+      th.textContent = '';
+      const head = document.createElement('div');
+      head.className = 'coin-detail-head';
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'coin-detail-label';
+      labelSpan.textContent = label;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'coin-detail-sort';
+      button.textContent = 'Sort';
+      button.title = 'Sort ' + label;
+      button.setAttribute('aria-label', 'Sort ' + label);
+      button.addEventListener('click', function() {
+        const current = table.dataset.sortColumn === String(columnIndex) ? table.dataset.sortDir : '';
+        const nextDir = current === 'asc' ? 'desc' : 'asc';
+        table.dataset.sortColumn = String(columnIndex);
+        table.dataset.sortDir = nextDir;
+
+        Array.from(table.querySelectorAll('.coin-detail-sort')).forEach(function(otherButton) {
+          otherButton.classList.remove('active');
+          otherButton.textContent = 'Sort';
+        });
+        button.classList.add('active');
+        button.textContent = nextDir === 'asc' ? 'Asc' : 'Desc';
+
+        const rows = Array.from(tbody.rows);
+        rows.sort(function(rowA, rowB) {
+          const valueA = coinDetailSortValue(rowA.cells[columnIndex], columnIndex);
+          const valueB = coinDetailSortValue(rowB.cells[columnIndex], columnIndex);
+          let result;
+          if (typeof valueA === 'number' && typeof valueB === 'number') {
+            result = valueA - valueB;
+          } else {
+            result = String(valueA).localeCompare(String(valueB), 'vi', { numeric: true });
+          }
+          return nextDir === 'asc' ? result : -result;
+        });
+        rows.forEach(function(row) { tbody.appendChild(row); });
+      });
+      head.appendChild(labelSpan);
+      head.appendChild(button);
+      th.appendChild(head);
+    });
+  });
+}
+
 window.addEventListener('load', function() {
+  initCoinDetailSorting();
   for (const [id, data] of Object.entries(CHARTS))
     drawChart(id, data, id.startsWith('agg_'));
 });
